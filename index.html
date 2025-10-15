@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Meeting Assist — 단일파일(대시보드+PDF한글 fix)</title>
+
+<style>
+:root{--bg:#0b0f1a;--panel:#111827;--ink:#e8eefc;--muted:#97a3b2;--line:#23314f;--accent:#3b82f6;--danger:#ef4444;--ok:#10b981}
+*{box-sizing:border-box} html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Inter,system-ui,Segoe UI,Malgun Gothic,sans-serif}
+.nav{position:sticky;top:0;z-index:10;display:flex;gap:12px;align-items:center;padding:12px 16px;background:#0e1423;border-bottom:1px solid var(--line)}
+.brand{font-weight:800}.spacer{flex:1}
+.badge{font-size:12px;padding:2px 8px;border-radius:999px;background:#16233d;color:#cbd5e1;border:1px solid var(--line)}
+.container{max-width:1220px;margin:18px auto;padding:0 16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;margin-bottom:16px;box-shadow:0 10px 32px rgb(0 0 0 / 25%)}
+.hstack{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.vstack{display:flex;flex-direction:column;gap:10px}
+.grid{display:grid;gap:14px}
+.grid-2{grid-template-columns:420px 1fr}
+.grid-3{grid-template-columns:repeat(3,1fr)}
+.hidden{display:none}
+label{font-size:13px;color:var(--muted)}
+input,textarea,select,button{font:inherit;color:var(--ink);background:#0d1426;border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+textarea{min-height:520px;resize:vertical}
+button{cursor:pointer;background:var(--accent);border:none}
+button.ghost{background:transparent;border:1px solid var(--line)}
+button.danger{background:var(--danger)}
+.small{font-size:12px;color:var(--muted)}
+.list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.list li,.box{background:#0b1326;border:1px solid var(--line);border-radius:12px;padding:10px}
+
+/* 타이머 */
+.timerBox{background:#0b1326;border:1px solid var(--line);border-radius:14px;padding:12px}
+#timer{font-weight:900;letter-spacing:1px}
+.progress{height:10px;background:#0b1222;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.progress>div{height:100%;background:linear-gradient(90deg,#3b82f6,#22d3ee);width:0%}
+
+/* 체크리스트 */
+.ck-col{background:#0b1326;border:1px solid var(--line);border-radius:12px;padding:12px}
+.ck-col h4{margin:0 0 8px 0;color:#cbd5e1}
+.ck-item{display:flex;gap:10px;align-items:center;margin:6px 0}
+
+/* 대시보드 */
+.chartGrid{display:grid;gap:18px;grid-template-columns:repeat(auto-fit,minmax(260px,1fr))}
+.kpi{display:flex;gap:10px;align-items:center;background:#0b1326;border:1px solid var(--line);border-radius:12px;padding:10px}
+.kpi strong{font-size:18px}
+</style>
+</head>
+<body>
+  <nav class="nav">
+    <a href="#" class="brand" data-view="meet">Meeting Assist</a>
+    <span id="mode" class="badge">모드 확인 중…</span>
+    <div class="spacer"></div>
+    <a href="#" data-view="meet">회의 화면</a>
+    <a href="#" data-view="dash">대시보드</a>
+    <button id="save" class="ghost">저장</button>
+    <button id="dlPdf" class="ghost">PDF</button>
+    <button id="dlDocx" class="ghost">Word</button>
+    <button id="dlCsv" class="ghost">CSV(후속)</button>
+  </nav>
+
+  <div class="container">
+    <!-- ===== 회의 화면 ===== -->
+    <section id="view-meet" class="vstack">
+      <div class="card grid grid-2">
+        <!-- 좌: 회의록 -->
+        <section class="vstack">
+          <h3>📝 회의록</h3>
+          <div class="hstack">
+            <button id="insertStamp" class="ghost">⏱ 타임스탬프</button>
+            <button id="clearNotes" class="ghost">지우기</button>
+            <span id="saveState" class="small">저장 대기…</span>
+          </div>
+          <!-- PDF 캡처용 래퍼 -->
+          <div id="exportArea" class="box">
+            <h2 id="expTitle" style="margin-top:0">회의 제목</h2>
+            <p class="small" id="expMeta">설정: -분 / 실제: -분 / 상태: -</p>
+            <h3>회의록</h3>
+            <div id="expNotes" style="white-space:pre-wrap"></div>
+            <h3>후속조치</h3>
+            <ul id="expActions" style="margin:0;padding-left:18px"></ul>
+            <h3>파킹랏</h3>
+            <ul id="expParking" style="margin:0;padding-left:18px"></ul>
+            <h3>체크리스트 요약</h3>
+            <ul id="expChecklist" style="margin:0;padding-left:18px"></ul>
+          </div>
+          <textarea id="notes" placeholder="넓은 세로형 메모 공간입니다. 목적/배경, 안건, 결정사항 등 자유롭게 작성하세요."></textarea>
+        </section>
+
+        <!-- 우: 정보 + 타이머 + 후속조치 + 파킹랏 -->
+        <section class="vstack">
+          <h3>🗂 회의 정보 & 타이머</h3>
+          <div class="box">
+            <div class="hstack" style="gap:12px">
+              <label style="flex:1">회의 제목* <input id="title" placeholder="예: 전략 회의"/></label>
+              <label>회의 시간*
+                <select id="plan">
+                  <option>30</option><option>45</option><option>60</option>
+                  <option>75</option><option>90</option><option>105</option><option>120</option>
+                </select>
+              </label>
+            </div>
+            <div class="timerBox vstack">
+              <div class="hstack">
+                <span class="badge">설정: <span id="lblPlan">60</span>분</span>
+                <span class="badge">상태: <span id="lblStatus">ready</span></span>
+                <span class="badge">실제: <span id="lblReal">0</span>분</span>
+              </div>
+              <div class="hstack">
+                <div id="timer" style="font-size:40px">00:00</div>
+                <button id="start">시작</button>
+                <button id="pause" class="ghost">일시정지</button>
+                <button id="reset" class="ghost">리셋</button>
+                <button id="end" class="danger">종료</button>
+              </div>
+              <div class="progress"><div id="bar"></div></div>
+              <span class="small">남은 시간 알림: T-10 / T-5</span>
+            </div>
+          </div>
+
+          <!-- 후속조치 -->
+          <div class="box vstack">
+            <div class="hstack"><h4 style="margin:0">📌 후속조치</h4><span class="small">담당/기한 포함</span></div>
+            <div class="hstack">
+              <input id="acTask" placeholder="무엇을?"/>
+              <input id="acOwner" placeholder="담당자"/>
+              <input id="acDue" type="date"/>
+              <button id="acAdd">추가</button>
+            </div>
+            <table class="tbl" id="acTbl">
+              <thead><tr><th>할 일</th><th>담당</th><th>기한</th><th>완료</th><th>삭제</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+
+          <!-- 파킹랏 -->
+          <div class="box vstack">
+            <div class="hstack"><h4 style="margin:0">🅿 파킹랏</h4><span class="small">지금 처리 불가 → 후속으로</span></div>
+            <div class="hstack">
+              <input id="plItem" placeholder="보류할 주제"/>
+              <button id="plAdd">추가</button>
+            </div>
+            <ul id="plList" class="list"></ul>
+          </div>
+        </section>
+      </div>
+
+      <!-- 하단: 체크리스트(전/중/후 각 5개) -->
+      <div class="card">
+        <h3>✅ 체크리스트(15)</h3>
+        <div class="grid grid-3">
+          <div class="ck-col">
+            <h4>회의 전</h4>
+            <label class="ck-item"><input type="checkbox" class="ck" data-k="pre_goal">목적/성과지표 명확</label>
+            <label class="ck-item"><input type="checkbox" class="ck" data-k="pre_agenda">안건·자료 사전 공유</label>
+            <label class="ck-item"><input type="checkbox" class="ck" data-k="pre_attendee">필수 참석자/결정권자 확인</label>
+            <label class="ck-item"><input type="checkbox" class="ck" data-k="pre_timebox">시간제한 합의(30–120)</label>
+            <label class="ck-item"><input type="checkbox" class="ck" data-k="pre_roles">역할 배정(진행/기록/타임키퍼)</label>
+          </div>
+          <div class="ck-col">
+            <h4>회의 중</h4>
+            <label class="ck-item"><input type="checkbox" class="ck" data-k="mid_scope">탈선은 파킹랏으로 분리</label>
+            <label class="ck-item"><input type="checkbox" class="ck" data-k="mid_time">안건별 시간 준수</label>
+            <label class="ck-item"><input type="checkbox" class="ck" data-k="mid_decision">결정사항·근거 기록</label>
+            <label class="ck-item"><input type="checkbox" class="ck" data-k="mid_risk">리스크/의존성 식별</label>
+            <label class="ck-item"><input type="checkbox" class="ck" data-k="mid_actions">후속조치 초안(담당/기한)</label>
+          </div>
+          <div class="ck-col">
+            <h4>회의 후</h4>
+            <label class="ck-item"><input type="checkbox" class="ck" data-k="post_owner">담당·기한 확정/캘린더 반영</label>
+            <label class="ck-item"><input type="checkbox" class="ck" data-k="post_minutes">회의록 공유(요약/결정/액션)</label>
+            <label class="ck-item"><input type="checkbox" class="ck" data-k="post_follow">파킹랏 팔로우업 일정화</label>
+            <label class="ck-item"><input type="checkbox" class="ck" data-k="post_review">타임박싱 준수 회고</label>
+            <label class="ck-item"><input type="checkbox" class="ck" data-k="post_feedback">개선 피드백 수집</label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 대시보드(일/주/월/연 평균 회의시간 파이차트) ===== -->
+    <section id="view-dash" class="hidden vstack">
+      <div class="card">
+        <h3>📊 전사 대시보드</h3>
+        <div class="hstack">
+          <div class="kpi"><strong id="kpiCnt">-</strong><span class="small">총 회의 수</span></div>
+          <div class="kpi"><strong id="kpiSum">-</strong><span class="small">총 회의 시간(분)</span></div>
+          <div class="kpi"><strong id="kpiAvg">-</strong><span class="small">평균 회의 시간(분)</span></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="chartGrid">
+          <div><h4>일 평균</h4><canvas id="cDay"></canvas></div>
+          <div><h4>주 평균</h4><canvas id="cWeek"></canvas></div>
+          <div><h4>월 평균</h4><canvas id="cMonth"></canvas></div>
+          <div><h4>연 평균</h4><canvas id="cYear"></canvas></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- 라이브러리: Chart.js + jsPDF + html2canvas + FileSaver + docx -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html-docx-js/dist/html-docx.js"></script>
+
+  <!-- 앱 로직 -->
+  <script type="module">
+  // ===== 뷰 전환 =====
+  const $=(s)=>document.querySelector(s);
+  const mode=$("#mode");
+  function show(v){ ["meet","dash"].forEach(x=>$("#view-"+x).classList.add("hidden")); $("#view-"+v).classList.remove("hidden"); }
+  document.querySelectorAll('[data-view]').forEach(a=>a.onclick=(e)=>{e.preventDefault(); show(a.dataset.view); if(a.dataset.view==="dash") renderDashboard();});
+  show("meet");
+
+  // ===== 회의 화면 요소 =====
+  const title=$("#title"), plan=$("#plan");
+  const lblPlan=$("#lblPlan"), lblStatus=$("#lblStatus"), lblReal=$("#lblReal");
+  const timerEl=$("#timer"), bar=$("#bar"), startBtn=$("#start"), pauseBtn=$("#pause"), resetBtn=$("#reset"), endBtn=$("#end");
+  const notes=$("#notes"), saveBtn=$("#save"), saveState=$("#saveState");
+  const acTask=$("#acTask"), acOwner=$("#acOwner"), acDue=$("#acDue"), acAdd=$("#acAdd"), acTbl=$("#acTbl tbody");
+  const plItem=$("#plItem"), plAdd=$("#plAdd"), plList=$("#plList");
+  const dlPdf=$("#dlPdf"), dlDocx=$("#dlDocx"), dlCsv=$("#dlCsv");
+  const insertStamp=$("#insertStamp"), clearNotes=$("#clearNotes");
+
+  // PDF export area refs
+  const expTitle=$("#expTitle"), expMeta=$("#expMeta"), expNotes=$("#expNotes"), expActions=$("#expActions"), expParking=$("#expParking"), expChecklist=$("#expChecklist");
+  const exportArea=$("#exportArea");
+
+  // ===== 타이머 =====
+  lblPlan.textContent=plan.value;
+  plan.onchange=()=>{lblPlan.textContent=plan.value; updateProgress(0);};
+  let seconds=0, handle=null, warned10=false, warned5=false;
+  const fmt=(s)=>`${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+  const updateProgress=(s=seconds)=>{const limit=Number(plan.value)*60; bar.style.width=Math.min(100,Math.round((s/limit)*100))+"%";}
+  const beep=()=>{const C=window.AudioContext||window.webkitAudioContext; const c=new C(); const o=c.createOscillator(), g=c.createGain(); o.type="sine"; o.frequency.value=900; g.gain.value=0.05; o.connect(g); g.connect(c.destination); o.start(); setTimeout(()=>{o.stop();c.close();},220);}
+  const tick=()=>{seconds++; timerEl.textContent=fmt(seconds); lblReal.textContent=Math.round(seconds/60); updateProgress(); const remain=Number(plan.value)*60-seconds; if(!warned10&&remain===600){warned10=true;beep();alert("남은 시간 10분!");} if(!warned5&&remain===300){warned5=true;beep();alert("남은 시간 5분!");}}
+  const startTimer=()=>{if(handle) return; handle=setInterval(tick,1000); lblStatus.textContent="running";}
+  const pauseTimer=()=>{if(handle){clearInterval(handle); handle=null; lblStatus.textContent="paused";}}
+  const resetTimer=()=>{pauseTimer(); seconds=0; timerEl.textContent="00:00"; lblReal.textContent="0"; warned10=false; warned5=false; updateProgress(0); lblStatus.textContent="ready";}
+
+  startBtn.onclick=()=>startTimer();
+  pauseBtn.onclick=()=>pauseTimer();
+  resetBtn.onclick=()=>resetTimer();
+  endBtn.onclick=async()=>{pauseTimer(); lblStatus.textContent="ended"; await saveAll(true); alert(`회의 종료(총 ${Math.round(seconds/60)}분)`);};
+
+  // ===== 노트 유틸 =====
+  insertStamp.onclick=()=>{const ts=new Date().toLocaleTimeString(); notes.setRangeText(`[${ts}] `, notes.selectionStart, notes.selectionEnd, "end"); notes.dispatchEvent(new Event("input"));};
+  clearNotes.onclick=()=>{if(confirm("회의록을 지울까요?")){notes.value=""; notes.dispatchEvent(new Event("input"));}}
+
+  // ===== 후속조치 / 파킹랏 =====
+  let actions=[], parking=[];
+  function redrawActions(){ acTbl.innerHTML=""; actions.forEach((a,i)=>{ const tr=document.createElement("tr"); tr.innerHTML=`
+      <td>${a.task}</td><td>${a.owner||"-"}</td><td>${a.due||"-"}</td>
+      <td><input type="checkbox" ${a.done?"checked":""}></td>
+      <td><button class="ghost">삭제</button></td>`;
+    tr.querySelector('input[type="checkbox"]').onchange=e=>{actions[i].done=e.target.checked; saveAll(false);};
+    tr.querySelector('button').onclick=()=>{actions.splice(i,1); redrawActions(); saveAll(false);};
+    acTbl.appendChild(tr);
+  });}
+  acAdd.onclick=()=>{const t=acTask.value.trim(); if(!t) return alert("할 일을 입력하세요"); actions.push({task:t, owner:acOwner.value.trim()||"", due:acDue.value||"", done:false}); acTask.value=""; acOwner.value=""; acDue.value=""; redrawActions(); saveAll(false);}
+
+  function redrawPL(){ plList.innerHTML=""; parking.forEach((p,i)=>{ const li=document.createElement("li"); li.className="box"; li.textContent=p; const b=document.createElement("button"); b.textContent="삭제"; b.className="ghost"; b.style.marginLeft="10px"; b.onclick=()=>{parking.splice(i,1); redrawPL(); saveAll(false);}; li.appendChild(b); plList.appendChild(li); });}
+  plAdd.onclick=()=>{const v=plItem.value.trim(); if(!v) return; parking.push(v); plItem.value=""; redrawPL(); saveAll(false);}
+
+  // ===== 체크리스트 바인딩 =====
+  const ckInputs=[...document.querySelectorAll(".ck")];
+  ckInputs.forEach(i=> i.onchange=()=>saveAll(false));
+
+  // ===== 다운로드: Word(그대로), CSV(후속), PDF(한글 보존) =====
+  dlDocx.onclick=()=>{
+    const html = `
+      <h1>${title.value||"(제목 없음)"}</h1>
+      <p><strong>설정:</strong> ${plan.value}분 / <strong>실제:</strong> ${Math.round(seconds/60)}분 / <strong>상태:</strong> ${lblStatus.textContent}</p>
+      <h2>회의록</h2><p>${(notes.value||"").replace(/\n/g,"<br/>")}</p>
+      <h2>후속조치</h2><p>${actions.map(a=>`- ${a.task} / 담당:${a.owner||"-"} / 기한:${a.due||"-"} / 완료:${a.done?"Y":"N"}`).join("<br/>")||"(없음)"}</p>
+      <h2>파킹랏</h2><p>${parking.map(p=>`- ${p}`).join("<br/>")||"(없음)"}</p>`;
+    const blob=window.htmlDocx.asBlob(`<!doctype html><html><head><meta charset="utf-8"></head><body>${html}</body></html>`);
+    saveAs(blob,"meeting.docx");
+  };
+  dlCsv.onclick=()=>{
+    const rows=[["task","owner","due","done"]];
+    actions.forEach(a=>rows.push([a.task,a.owner,a.due,a.done?"Y":"N"]));
+    const csv=rows.map(r=>r.map(x=>`"${String(x).replaceAll('"','""')}"`).join(",")).join("\n");
+    const blob=new Blob([csv],{type:"text/csv;charset=utf-8"}); saveAs(blob,"actions.csv");
+  };
+  dlPdf.onclick=async ()=>{
+    // 화면의 exportArea를 이미지로 캡처 → PDF에 삽입(한글 보존)
+    expTitle.textContent = title.value||"(제목 없음)";
+    expMeta.textContent  = `설정: ${plan.value}분 / 실제: ${Math.round(seconds/60)}분 / 상태: ${lblStatus.textContent}`;
+    expNotes.textContent = notes.value||"(내용 없음)";
+    expActions.innerHTML = actions.length? actions.map(a=>`<li>${a.task} / 담당:${a.owner||"-"} / 기한:${a.due||"-"} / 완료:${a.done?"Y":"N"}</li>`).join("") : "<li>(없음)</li>";
+    expParking.innerHTML = parking.length? parking.map(p=>`<li>${p}</li>`).join("") : "<li>(없음)</li>";
+    const checked = ckInputs.filter(i=>i.checked).map(i=>i.parentElement.textContent.trim());
+    expChecklist.innerHTML = checked.length? checked.map(t=>`<li>${t}</li>`).join("") : "<li>(없음)</li>";
+
+    const canvas = await html2canvas(exportArea, {scale:2, backgroundColor:"#111827"});
+    const imgData = canvas.toDataURL("image/png");
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({unit:"pt", format:"a4"});
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const ratio = pageWidth / canvas.width;
+    const imgH = canvas.height * ratio;
+    pdf.addImage(imgData, "PNG", 0, 0, pageWidth, imgH);
+    pdf.save("meeting.pdf");
+  };
+
+  // ===== 저장(클라우드 or 로컬) =====
+  let useDB=false, db=null, addDocFn=null, updateDocFn=null, docFn=null, collectionFn=null, serverTimestampFn=null, getDocsFn=null, queryFn=null, orderByFn=null;
+  let currentId=null;
+
+  // Firebase 동적 로드(설정 넣으면 클라우드 모드)
+  try{
+    const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js");
+    const fw = await import("https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js");
+    const firebaseConfig = {
+      /* const firebaseConfig = {
+  apiKey: "AIzaSyCpTt5E2JYjsvjjFEh_QG0YVElFgYJ0jX8",
+  authDomain: "meeting-assit-site.firebaseapp.com",
+  projectId: "meeting-assit-site",
+  storageBucket: "meeting-assit-site.firebasestorage.app",
+  messagingSenderId: "289914417857",
+  appId: "1:289914417857:web:7abefc88883b29eafeda40",
+  measurementId: "G-PE7WSSQ5EX"
+};
+      apiKey:"...", authDomain:"...", projectId:"...", appId:"..."
+      */
+    };
+    if(!Object.keys(firebaseConfig).length) throw new Error("No Firebase config");
+    const app = initializeApp(firebaseConfig);
+    db=fw.getFirestore(app);
+    addDocFn=fw.addDoc; updateDocFn=fw.updateDoc; docFn=fw.doc; collectionFn=fw.collection; serverTimestampFn=fw.serverTimestamp;
+    getDocsFn=fw.getDocs; queryFn=fw.query; orderByFn=fw.orderBy;
+    useDB=true; mode.textContent="클라우드 모드"; mode.style.background="#12396c";
+  }catch(e){
+    useDB=false; mode.textContent="로컬 모드"; mode.style.background="#5b3415";
+  }
+
+  // 자동저장
+  let deb=null; const debSave=(fn,ms)=>{if(deb) clearTimeout(deb); deb=setTimeout(fn,ms);};
+  notes.addEventListener("input", ()=>{saveState.textContent="저장 중…"; debSave(()=>saveAll(false), 400);});
+  [title, plan].forEach(el=> el.addEventListener("change", ()=>saveAll(false)) );
+  saveBtn.onclick=()=>saveAll(false);
+
+  async function saveAll(ended){
+    const payload={
+      title:(title.value||"").trim(),
+      plannedMinutes:Number(plan.value),
+      actualMinutes:Math.round(seconds/60),
+      status: ended? "ended" : lblStatus.textContent,
+      notes: notes.value||"",
+      actions, parking,
+      checklist: Object.fromEntries([...document.querySelectorAll(".ck")].map(i=>[i.dataset.k, i.checked])),
+      updatedAt: Date.now()
+    };
+    if(!payload.title||!payload.plannedMinutes){ saveState.textContent="제목/시간 필요"; return; }
+
+    try{
+      if(useDB){
+        if(!currentId){
+          const ref = await addDocFn(collectionFn(db,"meetings"), {...payload, createdAt: serverTimestampFn()});
+          currentId = ref.id;
+        }else{
+          await updateDocFn(docFn(db,"meetings",currentId), payload);
+        }
+        saveState.textContent="저장됨(클라우드)";
+      }else{
+        const key=currentId||("local_"+Date.now());
+        currentId=key;
+        const all = JSON.parse(localStorage.getItem("meetings_local")||"[]").filter(x=>x.id!==key);
+        all.unshift({id:key,...payload});
+        while(all.length>50) all.pop();
+        localStorage.setItem("meetings_local", JSON.stringify(all));
+        saveState.textContent="저장됨(로컬)";
+      }
+    }catch(err){
+      console.error(err); saveState.textContent="저장 오류";
+    }finally{
+      setTimeout(()=>saveState.textContent="저장 대기…",1200);
+    }
+  }
+
+  // ===== 대시보드(일/주/월/연 평균 파이차트) — 로컬/클라우드 모두 지원 =====
+  let charts=[];
+  async function renderDashboard(){
+    let rows=[]; // {minutes, date}
+    if(useDB){
+      const s = await getDocsFn(queryFn(collectionFn(db,"meetings"), orderByFn("updatedAt","desc")));
+      s.forEach(d=>{
+        const m=d.data();
+        const minutes = Number(m.actualMinutes ?? m.plannedMinutes ?? 0);
+        const ts = m.updatedAt ? new Date(m.updatedAt) : new Date();
+        rows.push({minutes, date: ts});
+      });
+    }else{
+      const all = JSON.parse(localStorage.getItem("meetings_local")||"[]");
+      rows = all.map(m=>({minutes:Number(m.actualMinutes ?? m.plannedMinutes ?? 0), date:new Date(m.updatedAt||Date.now())}));
+    }
+
+    // KPI
+    const cnt=rows.length, sum=rows.reduce((a,b)=>a+(b.minutes||0),0), avg=cnt?Math.round(sum/cnt):0;
+    $("#kpiCnt").textContent=cnt; $("#kpiSum").textContent=sum; $("#kpiAvg").textContent=avg;
+
+    // grouping
+    const pad=n=>String(n).padStart(2,"0");
+    const dayKey = d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    const monthKey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}`;
+    const yearKey = d=>`${d.getFullYear()}`;
+    const weekKey = d=>{ const date=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate())); const day=date.getUTCDay()||7; date.setUTCDate(date.getUTCDate()+4-day); const yearStart=new Date(Date.UTC(date.getUTCFullYear(),0,1)); const week=Math.ceil((((date-yearStart)/86400000)+1)/7); return `${date.getUTCFullYear()}-W${pad(week)}`; };
+
+    function avgBy(keyer){
+      const map=new Map();
+      rows.forEach(r=>{const k=keyer(r.date); const cur=map.get(k)||{sum:0,cnt:0}; cur.sum+=r.minutes; cur.cnt++; map.set(k,cur);});
+      const labels=[...map.keys()].sort();
+      const data=labels.map(k=>Math.round(map.get(k).sum/map.get(k).cnt||0));
+      return {labels,data};
+    }
+    const dDay=avgBy(dayKey), dWeek=avgBy(weekKey), dMonth=avgBy(monthKey), dYear=avgBy(yearKey);
+
+    // 그리기
+    charts.forEach(c=>c.destroy()); charts=[];
+    charts.push(new Chart(document.getElementById("cDay"),  {type:"pie", data:{labels:dDay.labels,  datasets:[{data:dDay.data}]}}));
+    charts.push(new Chart(document.getElementById("cWeek"), {type:"pie", data:{labels:dWeek.labels, datasets:[{data:dWeek.data}]}}));
+    charts.push(new Chart(document.getElementById("cMonth"),{type:"pie", data:{labels:dMonth.labels,datasets:[{data:dMonth.data}]}}));
+    charts.push(new Chart(document.getElementById("cYear"), {type:"pie", data:{labels:dYear.labels, datasets:[{data:dYear.data}]}}));
+  }
+  </script>
+</body>
+</html>

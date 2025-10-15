@@ -1,0 +1,53 @@
+// Firebase SDK 가져오기 (버전 10 기준)
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.3/firebase-app.js";
+import {
+  getFirestore, collection, addDoc, serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.3/firebase-firestore.js";
+
+// 🔧 여기! 본인 Firebase 콘솔에서 복사한 설정 붙여넣기
+const firebaseConfig = {
+  // apiKey: "AIzaSyCpTt5E2JYjsvjjFEh_QG0YVElFgYJ0jX8",
+  // authDomain: "meeting-assit-site.firebaseapp.com",
+  // projectId: "meeting-assit-site",
+  // storageBucket: "meeting-assit-site.firebasestorage.app",
+  // messagingSenderId: "289914417857",
+  // appId: "1:289914417857:web:7abefc88883b29eafeda40",
+  // measurementId: "G-PE7WSSQ5EX"
+};
+
+// Firebase 초기화
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// 폼 요소 가져오기
+const form = document.getElementById("createForm");
+const result = document.getElementById("result");
+
+// 저장 버튼 누르면 실행
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+ const firebaseConfig = {
+  apiKey: "AIzaSyCpTt5E2JYjsvjjFEh_QG0YVElFgYJ0jX8",
+  authDomain: "meeting-assit-site.firebaseapp.com",
+  projectId: "meeting-assit-site",
+  storageBucket: "meeting-assit-site.firebasestorage.app",
+  messagingSenderId: "289914417857",
+  appId: "1:289914417857:web:7abefc88883b29eafeda40",
+  measurementId: "G-PE7WSSQ5EX"
+};
+
+  if (!data.title || !data.purpose || !data.timeLimit) {
+    result.textContent = "⚠️ 제목, 목적, 시간제한은 꼭 입력해야 해요!";
+    return;
+  }
+
+  try {
+    const docRef = await addDoc(collection(db, "meetings"), data);
+    result.innerHTML = `✅ 저장 완료! 문서 ID: <code>${docRef.id}</code>`;
+    form.reset();
+  } catch (error) {
+    console.error(error);
+    result.textContent = "❌ 저장 중 오류가 발생했어요.";
+  }
+});

@@ -1,0 +1,37 @@
+:root{
+  --bg:#0b0f1a; --panel:#121827; --ink:#e7eefc; --muted:#9aa4b2; --line:#26324b;
+  --accent:#3b82f6; --accent-ink:#eaf2ff; --danger:#ef4444; --success:#10b981; --warn:#f59e0b;
+}
+*{box-sizing:border-box} html,body{height:100%}
+body{margin:0;font-family:Inter,system-ui,Segoe UI,Apple SD Gothic Neo,Malgun Gothic,sans-serif;background:var(--bg);color:var(--ink)}
+a{color:#c7d2fe;text-decoration:none}
+.nav{position:sticky;top:0;z-index:10;display:flex;gap:12px;align-items:center;padding:12px 20px;background:#0e1423;border-bottom:1px solid var(--line)}
+.brand{font-weight:700}
+.spacer{flex:1}
+.container{max-width:1000px;margin:18px auto;padding:0 16px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 10px 30px rgb(0 0 0 / 25%);margin-bottom:16px}
+.hstack{display:flex;gap:10px;align-items:center}
+.vstack{display:flex;flex-direction:column;gap:10px}
+.grid{display:grid;gap:14px}
+.grid2{grid-template-columns:1fr 1fr}
+label{font-size:14px;color:var(--muted)}
+input,textarea,select,button{
+  font:inherit;color:var(--ink);background:#0d1426;border:1px solid var(--line);
+  border-radius:12px;padding:12px 14px
+}
+textarea{min-height:280px;line-height:1.6;resize:vertical}
+input::placeholder,textarea::placeholder{color:#6b7280}
+button{cursor:pointer;background:var(--accent);color:var(--accent-ink);border:none}
+button.ghost{background:transparent;border:1px solid var(--line)}
+button.danger{background:var(--danger)}
+.badge{font-size:12px;padding:2px 8px;border-radius:999px;background:#16233d;color:#cbd5e1;border:1px solid var(--line)}
+.sub{color:var(--muted)}
+.mono{font-family:ui-monospace,Consolas,monospace}
+.small{font-size:12px;color:var(--muted)}
+/* 타이머 */
+.timerWrap{display:flex;align-items:center;gap:10px}
+#timer{font-weight:800;letter-spacing:1px}
+.progress{height:8px;background:#0b1222;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.progress > div{height:100%;background:linear-gradient(90deg,#3b82f6,#22d3ee)}
+.list{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.list li{background:#0d1426;border:1px solid var(--line);border-radius:12px;padding:12px}
